@@ -1,28 +1,13 @@
-use std::net::SocketAddr;
-
-use axum::{routing::get, Router, Server};
-
-async fn hello() -> &'static str {
-    "Hello, world!"
-}
-
-fn app() -> Router {
-    Router::new().route("/", get(hello))
-}
+mod db;
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let server_port = 8080;
-    let addr = SocketAddr::from(([127, 0, 0, 1], server_port));
+    let database_pool = db::init().await.unwrap();
 
-    tracing::debug!("Server listening on: {}", addr);
-
-    Server::bind(&addr)
-        .serve(app().into_make_service())
-        .await
-        .expect("Failed to start server")
+    rust_web_app::serve(database_pool).await;
 }
 
 #[cfg(test)]
@@ -32,11 +17,13 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
+    use rust_web_app::app;
     use tower::ServiceExt;
 
     #[tokio::test]
     async fn hello_route() {
-        let app = app();
+        let database_pool = db::init().await.unwrap();
+        let app = app(database_pool);
 
         let response = app
             .oneshot(
@@ -58,7 +45,8 @@ mod tests {
 
     #[tokio::test]
     async fn not_found() {
-        let app = app();
+        let database_pool = db::init().await.unwrap();
+        let app = app(database_pool);
 
         let response = app
             .oneshot(
