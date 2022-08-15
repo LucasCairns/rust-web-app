@@ -1,20 +1,21 @@
+use axum::{routing::get, Extension, Router, Server};
+use sqlx::PgPool;
 use std::{env, net::SocketAddr};
 
-use axum::{routing::get, Extension, Router, Server};
-use sqlx::{Pool, Postgres};
-use tower::ServiceBuilder;
+mod http;
 
 async fn hello() -> &'static str {
     "Hello, world!"
 }
 
-pub fn app(database_pool: Pool<Postgres>) -> Router {
+pub fn app(database_pool: PgPool) -> Router {
     Router::new()
         .route("/", get(hello))
-        .layer(ServiceBuilder::new().layer(Extension(database_pool)))
+        .merge(http::person::router())
+        .layer(Extension(database_pool))
 }
 
-pub async fn serve(database_pool: Pool<Postgres>) {
+pub async fn serve(database_pool: PgPool) {
     let server_port = env::var("SERVER_PORT")
         .ok()
         .and_then(|v: String| -> Option<u16> { v.parse().ok() })

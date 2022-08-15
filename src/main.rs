@@ -22,6 +22,7 @@ mod tests {
 
     #[tokio::test]
     async fn hello_route() {
+        dotenv::dotenv().ok();
         let database_pool = db::init().await.unwrap();
         let app = app(database_pool);
 
@@ -45,6 +46,7 @@ mod tests {
 
     #[tokio::test]
     async fn not_found() {
+        dotenv::dotenv().ok();
         let database_pool = db::init().await.unwrap();
         let app = app(database_pool);
 

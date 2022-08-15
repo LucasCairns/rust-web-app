@@ -1,6 +1,6 @@
 use std::env::{self, VarError};
 
-use sqlx::{migrate::MigrateError, postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{migrate::MigrateError, postgres::PgPoolOptions, PgPool};
 
 #[derive(Debug)]
 pub enum Error {
@@ -51,13 +51,13 @@ impl From<MigrateError> for Error {
     }
 }
 
-pub async fn init() -> Result<Pool<Postgres>, Error> {
+pub async fn init() -> Result<PgPool, Error> {
     let database_url = env::var("DATABASE_URL")?;
     let schema_name = env::var("DATABASE_SCHEMA").unwrap_or_else(|_| "public".to_owned());
 
     let pool = PgPoolOptions::new()
         .max_connections(20)
-        .connect(format!("{database_url}?options[search_path]={schema_name}").as_str())
+        .connect(&database_url)
         .await?;
 
     sqlx::query(format!("CREATE SCHEMA IF NOT EXISTS {schema_name}").as_str())
