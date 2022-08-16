@@ -6,9 +6,9 @@ use sqlx::{migrate::MigrateError, postgres::PgPoolOptions, PgPool};
 pub enum Error {
     #[error("{0}")]
     Configuration(#[from] VarError),
-    #[error("Failed to execute query: {0}")]
+    #[error("{0}")]
     Database(#[from] sqlx::Error),
-    #[error("Failed to apply migrations: {0}")]
+    #[error("{0}")]
     Migrate(#[from] MigrateError),
 }
 
