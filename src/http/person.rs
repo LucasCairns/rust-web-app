@@ -1,14 +1,16 @@
 use axum::{extract::Path, routing::get, Extension, Json, Router};
+use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use time::{Date, OffsetDateTime, PrimitiveDateTime};
+use time::{Date, OffsetDateTime};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
 use super::error::ApiError;
 
-#[derive(Debug, Validate, Deserialize)]
-struct NewPerson {
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+pub struct NewPerson {
     #[validate(length(min = 1, max = 64))]
     first_name: String,
     #[validate(length(min = 1, max = 64))]
@@ -25,8 +27,8 @@ fn date_not_in_future(date: &Date) -> Result<(), ValidationError> {
     Ok(())
 }
 
-#[derive(Debug, Validate, Deserialize)]
-struct UpdatePerson {
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+pub struct UpdatePerson {
     #[validate(length(min = 1, max = 64))]
     first_name: Option<String>,
     #[validate(length(min = 1, max = 64))]
@@ -35,22 +37,32 @@ struct UpdatePerson {
     date_of_birth: Option<Date>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct Person {
+pub struct Person {
     id: Uuid,
     first_name: String,
     family_name: String,
     date_of_birth: Date,
-    created: PrimitiveDateTime,
-    last_edited: PrimitiveDateTime,
+    created: OffsetDateTime,
+    last_edited: OffsetDateTime,
 }
 
 // #[axum_macros::debug_handler] // Useful for debugging trait bound errors
+#[utoipa::path(
+    post,
+    tag = "person",
+    path = "/person",
+    request_body = NewPerson,
+    responses(
+        (status = 201, description = "Person created successfully", body = Person),        
+        (status = 409, description = "Person already exists", body = ErrorResponse),
+    )
+)]
 async fn create_person(
     db: Extension<PgPool>,
     Json(request): Json<NewPerson>,
-) -> Result<Json<Person>, ApiError> {
+) -> Result<(StatusCode, Json<Person>), ApiError> {
     request.validate()?;
 
     let person = sqlx::query_as!(
@@ -74,9 +86,17 @@ async fn create_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
-    Ok(Json(person))
+    Ok((StatusCode::CREATED, Json(person)))
 }
 
+#[utoipa::path(
+    get,
+    tag = "person",
+    path = "/person",
+    responses(
+        (status = 200, description = "List all people", body = [Person]),
+    )
+)]
 async fn list_people(db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiError> {
     let people = sqlx::query_as!(
         Person,
@@ -90,6 +110,18 @@ async fn list_people(db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiErro
     Ok(Json(people))
 }
 
+#[utoipa::path(
+    get,
+    tag = "person",
+    path = "/person/{person_uuid}",
+    params(
+        ("person_uuid" = Uuid, Path, description = "The UUID of the person")
+    ),
+    responses(
+        (status = 200, description = "The person matching the given UUID", body = Person),
+        (status = 404, description = "Person not found", body = ErrorResponse),
+    )
+)]
 async fn get_person(
     db: Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
@@ -111,17 +143,30 @@ async fn get_person(
     Ok(Json(person))
 }
 
+#[utoipa::path(
+    delete,
+    tag = "person",
+    path = "/person/{person_uuid}",
+    params(
+        ("person_uuid" = Uuid, Path, description = "The UUID of the person")
+    ),
+    responses(
+        (status = 200, description = "Person deleted successfully"),
+        (status = 404, description = "Person not found", body = ErrorResponse),
+    )
+)]
 async fn delete_person(
     db: Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
     sqlx::query!(
         r#"
-            DELETE FROM person WHERE uuid = $1;
+            DELETE FROM person WHERE uuid = $1
+            RETURNING id;
         "#,
         person_uuid
     )
-    .execute(&*db)
+    .fetch_one(&*db)
     .await
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => {
@@ -133,6 +178,19 @@ async fn delete_person(
     Ok(())
 }
 
+#[utoipa::path(
+    put,
+    tag = "person",
+    path = "/person/{person_uuid}",
+    params(
+        ("person_uuid" = Uuid, Path, description = "The UUID of the person")
+    ),
+    request_body = UpdatePerson,
+    responses(
+        (status = 200, description = "Person updated successfully"),
+        (status = 404, description = "Person not found", body = ErrorResponse),
+    )
+)]
 async fn update_person(
     db: Extension<PgPool>,
     Json(request): Json<UpdatePerson>,
@@ -150,7 +208,7 @@ async fn update_person(
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}")),
         _ => ApiError::DatabaseError(e),
-    })?;    
+    })?;
 
     let updated_person = sqlx::query_as!(
         Person,

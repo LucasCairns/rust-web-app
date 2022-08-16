@@ -2,6 +2,7 @@ use axum::{response::IntoResponse, Json};
 use hyper::StatusCode;
 use serde::Serialize;
 use serde_with::DisplayFromStr;
+use utoipa::ToSchema;
 use validator::ValidationErrors;
 
 #[derive(thiserror::Error, Debug)]
@@ -16,17 +17,19 @@ pub enum ApiError {
     ValidationError(#[from] ValidationErrors),
 }
 
+#[serde_with::serde_as]
+#[serde_with::skip_serializing_none]
+#[derive(Serialize, ToSchema)]
+pub struct ErrorResponse<'a> {
+    #[serde_as(as = "DisplayFromStr")]
+    #[schema(value_type=String)]
+    message: &'a ApiError,
+    #[schema(value_type=Option<Any>)]
+    errors: Option<&'a ValidationErrors>,
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        #[serde_with::serde_as]
-        #[serde_with::skip_serializing_none]
-        #[derive(Serialize)]
-        struct ErrorResponse<'a> {
-            #[serde_as(as = "DisplayFromStr")]
-            message: &'a ApiError,
-            errors: Option<&'a ValidationErrors>,
-        }
-
         let validation_errors = match &self {
             ApiError::ValidationError(e) => Some(e),
             _ => None,

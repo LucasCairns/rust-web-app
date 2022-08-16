@@ -3,15 +3,17 @@ use axum::{
     routing::{delete, post},
     Extension, Json, Router,
 };
+use hyper::StatusCode;
 use serde::Deserialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
 use super::error::ApiError;
 
-#[derive(Debug, Validate, Deserialize)]
-struct NewAddress {
+#[derive(Debug, Validate, Deserialize, ToSchema)]
+pub struct NewAddress {
     #[validate(length(min = 1, max = 64))]
     building: String,
     #[validate(length(min = 1, max = 64))]
@@ -22,11 +24,24 @@ struct NewAddress {
     postcode: String,
 }
 
-async fn add_address(
+#[utoipa::path(
+    post,
+    tag = "address",
+    path = "/person/{person_uuid}/address",
+    request_body = NewAddress,
+    params(
+        ("person_uuid" = Uuid, Path, description = "The UUID of the person to create an address for")
+    ),
+    responses(
+        (status = 201, description = "Address created successfully"),
+        (status = 404, description = "Person not found", body = ErrorResponse),
+    )
+)]
+pub async fn add_address(
     db: Extension<PgPool>,
     Json(request): Json<NewAddress>,
     Path(person_uuid): Path<Uuid>,
-) -> Result<(), ApiError> {
+) -> Result<StatusCode, ApiError> {
     request.validate()?;
 
     sqlx::query!(
@@ -39,7 +54,8 @@ async fn add_address(
             UPDATE person p
             SET address = new_address.uuid, last_edited = now()
             FROM new_address
-            WHERE p.uuid = $5;
+            WHERE p.uuid = $5
+            RETURNING p.id;
         "#,
         request.building,
         request.street,
@@ -47,13 +63,31 @@ async fn add_address(
         request.postcode,
         person_uuid,
     )
-    .execute(&*db)
-    .await?;
+    .fetch_one(&*db)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => {
+            ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}"))
+        }
+        _ => ApiError::DatabaseError(e),
+    })?;
 
-    Ok(())
+    Ok(StatusCode::CREATED)
 }
 
-async fn remove_address(
+#[utoipa::path(
+    delete,
+    tag = "address",
+    path = "/address/{address_uuid}",
+    params(
+        ("address_uuid" = Uuid, Path, description = "The UUID of the address to remove")
+    ),
+    responses(
+        (status = 200, description = "Address deleted successfully"),
+        (status = 404, description = "Address not found", body = ErrorResponse),
+    )
+)]
+pub async fn remove_address(
     db: Extension<PgPool>,
     Path(address_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
@@ -61,21 +95,35 @@ async fn remove_address(
 
     sqlx::query!(
         r#"
-            UPDATE person SET address = NULL WHERE address = $1;
+            UPDATE person SET address = NULL WHERE address = $1
+            RETURNING id;
         "#,
         address_uuid
     )
-    .execute(&mut tx)
-    .await?;
+    .fetch_all(&mut tx)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => {
+            ApiError::NotFound(format!("Person not found with the address: {address_uuid}"))
+        }
+        _ => ApiError::DatabaseError(e),
+    })?;
 
     sqlx::query!(
         r#"
-            DELETE FROM address WHERE uuid = $1;
+            DELETE FROM address WHERE uuid = $1
+            RETURNING id;
         "#,
         address_uuid
     )
-    .execute(&mut tx)
-    .await?;
+    .fetch_one(&mut tx)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => {
+            ApiError::NotFound(format!("Address not found for: {address_uuid}"))
+        }
+        _ => ApiError::DatabaseError(e),
+    })?;
 
     tx.commit().await?;
 
