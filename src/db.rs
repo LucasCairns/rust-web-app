@@ -2,53 +2,14 @@ use std::env::{self, VarError};
 
 use sqlx::{migrate::MigrateError, postgres::PgPoolOptions, PgPool};
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    Configuration(String),
-    Query(String),
-    Connection(String),
-    Migrate(String),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::Configuration(e) => write!(f, "Failed to configure the database: {e}"),
-            Error::Query(e) => write!(f, "Failed to execute query: {e}"),
-            Error::Connection(e) => write!(f, "Failed to connect to the database: {e}"),
-            Error::Migrate(e) => write!(f, "Failed to apply migrations: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<VarError> for Error {
-    fn from(error: VarError) -> Self {
-        Error::Configuration(error.to_string())
-    }
-}
-
-impl From<sqlx::Error> for Error {
-    fn from(error: sqlx::Error) -> Self {
-        match error {
-            sqlx::Error::Configuration(e) => Error::Configuration(e.to_string()),
-            sqlx::Error::Database(e) => Error::Query(e.to_string()),
-            sqlx::Error::Io(e) => Error::Connection(e.to_string()),
-            sqlx::Error::Tls(e) => Error::Connection(e.to_string()),
-            sqlx::Error::Protocol(e) => Error::Connection(e),
-            sqlx::Error::PoolTimedOut => Error::Connection(String::from("Pool timed out")),
-            sqlx::Error::PoolClosed => Error::Connection(String::from("Pool closed")),
-            sqlx::Error::WorkerCrashed => Error::Connection(String::from("Worker crashed")),
-            query_error => Error::Query(query_error.to_string()),
-        }
-    }
-}
-
-impl From<MigrateError> for Error {
-    fn from(error: MigrateError) -> Self {
-        Error::Migrate(error.to_string())
-    }
+    #[error("{0}")]
+    Configuration(#[from] VarError),
+    #[error("Failed to execute query: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Failed to apply migrations: {0}")]
+    Migrate(#[from] MigrateError),
 }
 
 pub async fn init() -> Result<PgPool, Error> {
