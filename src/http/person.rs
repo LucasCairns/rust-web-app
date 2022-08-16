@@ -150,12 +150,12 @@ async fn update_person(
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}")),
         _ => ApiError::DatabaseError(e),
-    })?;
+    })?;    
 
     let updated_person = sqlx::query_as!(
         Person,
         r#"
-            UPDATE person SET first_name = $1, family_name = $2, date_of_birth = $3
+            UPDATE person SET first_name = $1, family_name = $2, date_of_birth = $3, last_edited = now()
             WHERE uuid = $4
             RETURNING uuid AS id, created, last_edited, first_name, family_name, date_of_birth;
         "#,

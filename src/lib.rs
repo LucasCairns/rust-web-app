@@ -12,6 +12,7 @@ pub fn app(database_pool: PgPool) -> Router {
     Router::new()
         .route("/", get(hello))
         .merge(http::person::router())
+        .merge(http::address::router())
         .layer(Extension(database_pool))
 }
 
