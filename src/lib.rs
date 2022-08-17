@@ -1,10 +1,14 @@
+use auth::Claims;
 use axum::{routing::get, Extension, Router, Server};
 use sqlx::PgPool;
+use tracing::info;
 use std::{env, net::SocketAddr};
 
 mod http;
+mod auth;
 
-async fn hello() -> &'static str {
+async fn hello(claims: Claims) -> &'static str {
+    info!("{:?}", claims);
     "Hello, world!"
 }
 
