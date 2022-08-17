@@ -1,5 +1,3 @@
-use std::env;
-
 use axum::{
     async_trait,
     extract::{FromRequest, RequestParts},
@@ -15,25 +13,31 @@ use jsonwebtoken::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use std::env;
 
 pub enum AuthError {
     InvalidToken,
     ExpiredToken,
     Unavailable,
+    MissingScope(String),
 }
 
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
-            AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Token expired"),
+            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token".to_owned()),
+            AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Token expired".to_owned()),
             AuthError::Unavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "Unable to verify JWT token",
+                "Unable to verify JWT token".to_owned(),
+            ),
+            AuthError::MissingScope(scope) => (
+                StatusCode::FORBIDDEN,
+                format!("User does not have the scope: {}", scope),
             ),
         };
         let body = Json(json!({
-            "error": error_message,
+            "message": error_message,
         }));
         (status, body).into_response()
     }
@@ -60,7 +64,7 @@ impl From<jsonwebtoken::errors::Error> for AuthError {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Claims {
     iss: String,
     sub: String,
@@ -91,13 +95,14 @@ where
 
         let jwks = get_jwks().await?;
 
-        let decoded =  match jwks.find(&kid) {
+        let decoded = match jwks.find(&kid) {
             Some(j) => match j.algorithm {
                 AlgorithmParameters::RSA(ref rsa) => {
                     let decoding_key = DecodingKey::from_rsa_components(&rsa.n, &rsa.e).unwrap();
                     let validation = Validation::new(j.common.algorithm.unwrap());
 
-                    decode::<Claims>(bearer_token.token(), &decoding_key, &validation).map_err(AuthError::from)
+                    decode::<Claims>(bearer_token.token(), &decoding_key, &validation)
+                        .map_err(AuthError::from)
                 }
                 _ => Err(AuthError::InvalidToken),
             },
@@ -105,5 +110,37 @@ where
         }?;
 
         Ok(decoded.claims)
+    }
+}
+
+#[derive(Debug)]
+pub struct ReadUser {
+    pub username: String,
+}
+
+impl From<Claims> for ReadUser {
+    fn from(claims: Claims) -> Self {
+        ReadUser {
+            username: claims.sub,
+        }
+    }
+}
+
+#[async_trait]
+impl<B> FromRequest<B> for ReadUser
+where
+    B: Send,
+{
+    type Rejection = AuthError;
+
+    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+        let claims = Claims::from_request(req).await?;
+        let scope = String::from("read");
+
+        if claims.scope.contains(&scope) {
+            Ok(ReadUser::from(claims))
+        } else {
+            Err(AuthError::MissingScope(scope))
+        }
     }
 }
