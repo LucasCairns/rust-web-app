@@ -1,0 +1,29 @@
+version: "3"
+services:
+  oauth:
+    image: quay.io/hmpps/hmpps-auth:latest
+    networks:
+      - rust_web_app    
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9090/auth/health" ]
+    environment:
+      - SERVER_PORT=9090
+      - SPRING_PROFILES_ACTIVE=dev
+
+  postgres:
+    image: postgres
+    restart: always
+    ports:
+      - 5432:5432
+    networks:
+      - rust_web_app
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: dev
+    tmpfs:
+      - /var/lib/postgresql
+
+networks:
+  rust_web_app:
