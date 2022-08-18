@@ -13,6 +13,8 @@ simple rust API built using axum and sqlx
 
 You will be required to have Postgres database set up and running to allow for the compile time validation of the SQL statements
 
+Spin up docker-compose
+
 ```sh
 docker-compose up
 ```
@@ -21,19 +23,19 @@ docker-compose up
 
 Install `sqlx-cli` if not already installed
 
-```
+```sh
 cargo install sqlx-cli
 ```
 
 Apply the migrations
 
-```
+```sh
 sqlx migrate run --source=db/migrations
 ```
 
 Start the application
 
-```
+```sh
 cargo run
 ```
 
