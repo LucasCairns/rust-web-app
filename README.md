@@ -19,19 +19,19 @@ docker-compose up
 
 **Note:** You may be required to create the database schema specified in the `.env` file if it does not exist already.
 
-To apply the database migrations you will need to install `sqlx-cli` if not installed already
+Install `sqlx-cli` if not already installed
 
 ```
 cargo install sqlx-cli
 ```
 
-and then run
+Apply the migrations
 
 ```
 sqlx migrate run --source=db/migrations
 ```
 
-To run the application you can run
+Start the application
 
 ```
 cargo run
