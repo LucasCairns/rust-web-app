@@ -55,7 +55,7 @@ pub struct Person {
     path = "/person",
     request_body = NewPerson,
     responses(
-        (status = 201, description = "Person created successfully", body = Person),        
+        (status = 201, description = "Person created successfully", body = Person),
         (status = 409, description = "Person already exists", body = ErrorResponse),
     )
 )]
@@ -245,7 +245,7 @@ mod tests {
     use super::NewPerson;
 
     #[test]
-    fn new_person() {
+    fn new_person_is_valid_when_dob_is_in_the_future() {
         let new_person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn new_person_from_the_future() {
+    fn new_person_is_invalid_when_dob_is_in_the_future() {
         let new_person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
