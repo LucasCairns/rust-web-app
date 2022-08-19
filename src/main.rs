@@ -2,7 +2,7 @@ mod db;
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
     let database_pool = db::init().await.unwrap();
@@ -22,7 +22,7 @@ mod tests {
 
     #[tokio::test]
     async fn hello_route() {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
         let database_pool = db::init().await.unwrap();
         let app = app(database_pool);
 
@@ -46,7 +46,7 @@ mod tests {
 
     #[tokio::test]
     async fn not_found() {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
         let database_pool = db::init().await.unwrap();
         let app = app(database_pool);
 
