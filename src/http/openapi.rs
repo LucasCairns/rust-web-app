@@ -1,5 +1,8 @@
 use axum::Router;
-use utoipa::OpenApi;
+use utoipa::{
+    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    Modify, OpenApi,
+};
 use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(OpenApi)]
@@ -20,10 +23,27 @@ use utoipa_swagger_ui::SwaggerUi;
         super::person::Person,
         super::error::ErrorResponse
     )),
-    modifiers(),
+    modifiers(&SecurityAddon),
     tags()
 )]
 struct ApiDoc;
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "bearer",
+                SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ),
+            );
+        }
+    }
+}
 
 pub fn router() -> Router {
     Router::new()

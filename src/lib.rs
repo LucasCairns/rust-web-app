@@ -1,14 +1,10 @@
-use auth::ReadUser;
 use axum::{routing::get, Extension, Router, Server};
 use sqlx::PgPool;
 use std::{env, net::SocketAddr};
-use tracing::info;
 
-mod auth;
 mod http;
 
-async fn hello(user: ReadUser) -> &'static str {
-    info!("user: {}", user.username);
+async fn hello() -> &'static str {
     "Hello, world!"
 }
 

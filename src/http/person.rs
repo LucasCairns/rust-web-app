@@ -3,10 +3,12 @@ use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use time::{Date, OffsetDateTime};
+use tracing::info;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
+use super::auth::{ReadUser, WriteUser};
 use super::error::ApiError;
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
@@ -48,7 +50,9 @@ pub struct Person {
     last_edited: OffsetDateTime,
 }
 
-// #[axum_macros::debug_handler] // Useful for debugging trait bound errors
+/// Create a new person
+///
+/// Requires the scope `write`
 #[utoipa::path(
     post,
     tag = "person",
@@ -57,9 +61,13 @@ pub struct Person {
     responses(
         (status = 201, description = "Person created successfully", body = Person),
         (status = 409, description = "Person already exists", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
 async fn create_person(
+    user: WriteUser,
     db: Extension<PgPool>,
     Json(request): Json<NewPerson>,
 ) -> Result<(StatusCode, Json<Person>), ApiError> {
@@ -86,18 +94,26 @@ async fn create_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
+    info!("Client '{}' created person '{}'", user.username, person.id);
+
     Ok((StatusCode::CREATED, Json(person)))
 }
 
+/// List all people
+///
+/// Requires the scope `read`
 #[utoipa::path(
     get,
     tag = "person",
     path = "/person",
     responses(
         (status = 200, description = "List all people", body = [Person]),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
-async fn list_people(db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiError> {
+async fn list_people(user: ReadUser, db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiError> {
     let people = sqlx::query_as!(
         Person,
         r#"
@@ -107,9 +123,18 @@ async fn list_people(db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiErro
     .fetch_all(&*db)
     .await?;
 
+    info!(
+        "Client '{}' retrieved {} person(s)",
+        user.username,
+        people.len(),
+    );
+
     Ok(Json(people))
 }
 
+/// Get a person
+///
+/// Requires the scope `read`
 #[utoipa::path(
     get,
     tag = "person",
@@ -120,9 +145,13 @@ async fn list_people(db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiErro
     responses(
         (status = 200, description = "The person matching the given UUID", body = Person),
         (status = 404, description = "Person not found", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
 async fn get_person(
+    user: ReadUser,
     db: Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
 ) -> Result<Json<Person>, ApiError> {
@@ -140,9 +169,14 @@ async fn get_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
+    info!("Client '{}' retrieved person '{}'", person.id, user.username);
+
     Ok(Json(person))
 }
 
+/// Delete a person
+///
+/// Requires the scope `write`
 #[utoipa::path(
     delete,
     tag = "person",
@@ -153,16 +187,20 @@ async fn get_person(
     responses(
         (status = 200, description = "Person deleted successfully"),
         (status = 404, description = "Person not found", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
 async fn delete_person(
+    user: WriteUser,
     db: Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
     sqlx::query!(
         r#"
             DELETE FROM person WHERE uuid = $1
-            RETURNING id;
+            RETURNING uuid as id;
         "#,
         person_uuid
     )
@@ -175,9 +213,14 @@ async fn delete_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
+    info!("Client '{}' deleted person '{}'", user.username, person_uuid);
+
     Ok(())
 }
 
+/// Update a person
+///
+/// Requires the scope `write`
 #[utoipa::path(
     put,
     tag = "person",
@@ -189,9 +232,13 @@ async fn delete_person(
     responses(
         (status = 200, description = "Person updated successfully"),
         (status = 404, description = "Person not found", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
 async fn update_person(
+    user: WriteUser,
     db: Extension<PgPool>,
     Json(request): Json<UpdatePerson>,
     Path(person_uuid): Path<Uuid>,
@@ -224,6 +271,11 @@ async fn update_person(
     )
     .fetch_one(&*db)
     .await?;
+
+    info!(
+        "Client '{}' updated person '{}'",
+        user.username, updated_person.id
+    );
 
     Ok(Json(updated_person))
 }

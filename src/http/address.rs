@@ -6,11 +6,12 @@ use axum::{
 use hyper::StatusCode;
 use serde::Deserialize;
 use sqlx::PgPool;
+use tracing::info;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::error::ApiError;
+use super::{auth::WriteUser, error::ApiError};
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
 pub struct NewAddress {
@@ -24,6 +25,9 @@ pub struct NewAddress {
     postcode: String,
 }
 
+/// Create an address for a person
+///
+/// Requires the scope `write`
 #[utoipa::path(
     post,
     tag = "address",
@@ -35,9 +39,13 @@ pub struct NewAddress {
     responses(
         (status = 201, description = "Address created successfully"),
         (status = 404, description = "Person not found", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = []),
     )
 )]
 pub async fn add_address(
+    user: WriteUser,
     db: Extension<PgPool>,
     Json(request): Json<NewAddress>,
     Path(person_uuid): Path<Uuid>,
@@ -55,7 +63,7 @@ pub async fn add_address(
             SET address = new_address.uuid, last_edited = now()
             FROM new_address
             WHERE p.uuid = $5
-            RETURNING p.id;
+            RETURNING p.uuid as id;
         "#,
         request.building,
         request.street,
@@ -72,9 +80,17 @@ pub async fn add_address(
         _ => ApiError::DatabaseError(e),
     })?;
 
+    info!(
+        "Client '{}' created an address for the person '{}'",
+        user.username, person_uuid
+    );
+
     Ok(StatusCode::CREATED)
 }
 
+/// Remove an address
+///
+/// Requires the scope `write`
 #[utoipa::path(
     delete,
     tag = "address",
@@ -85,9 +101,13 @@ pub async fn add_address(
     responses(
         (status = 200, description = "Address deleted successfully"),
         (status = 404, description = "Address not found", body = ErrorResponse),
+    ),
+    security(
+        ("bearer" = [])
     )
 )]
 pub async fn remove_address(
+    user: WriteUser,
     db: Extension<PgPool>,
     Path(address_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
@@ -120,12 +140,17 @@ pub async fn remove_address(
     .await
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => {
-            ApiError::NotFound(format!("Address not found for: {address_uuid}"))
+            ApiError::NotFound(format!("Address not found for the UUID: {address_uuid}"))
         }
         _ => ApiError::DatabaseError(e),
     })?;
 
     tx.commit().await?;
+
+    info!(
+        "Client '{}' deleted the address '{}'",
+        user.username, address_uuid
+    );
 
     Ok(())
 }
