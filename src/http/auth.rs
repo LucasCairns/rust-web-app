@@ -1,9 +1,9 @@
 use axum::{
     async_trait,
-    extract::{FromRequest, RequestParts},
+    extract::FromRequestParts,
     headers::{authorization::Bearer, Authorization},
     response::{IntoResponse, Response},
-    Json, TypedHeader,
+    Json, TypedHeader, http::request::Parts,
 };
 use hyper::StatusCode;
 use jsonwebtoken::{
@@ -76,15 +76,15 @@ pub struct Claims {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for Claims
+impl<S> FromRequestParts<S> for Claims
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AuthError;
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let TypedHeader(Authorization(bearer_token)) =
-            TypedHeader::<Authorization<Bearer>>::from_request(req)
+            TypedHeader::<Authorization<Bearer>>::from_request_parts(req, state)
                 .await
                 .map_err(|_| AuthError::MissingToken)?;
 
@@ -129,14 +129,14 @@ impl From<Claims> for ReadUser {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for ReadUser
+impl<S> FromRequestParts<S> for ReadUser
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AuthError;
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let claims = Claims::from_request(req).await?;
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let claims = Claims::from_request_parts(req, state).await?;
         let scope = String::from("read");
 
         if claims.scope.contains(&scope) {
@@ -161,14 +161,14 @@ impl From<Claims> for WriteUser {
 }
 
 #[async_trait]
-impl<B> FromRequest<B> for WriteUser
+impl<S> FromRequestParts<S> for WriteUser
 where
-    B: Send,
+    S: Send + Sync,
 {
     type Rejection = AuthError;
 
-    async fn from_request(req: &mut RequestParts<B>) -> Result<Self, Self::Rejection> {
-        let claims = Claims::from_request(req).await?;
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let claims = Claims::from_request_parts(req, state).await?;
         let scope = String::from("write");
 
         if claims.scope.contains(&scope) {
