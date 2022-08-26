@@ -47,8 +47,8 @@ pub struct NewAddress {
 pub async fn add_address(
     user: WriteUser,
     db: Extension<PgPool>,
-    Json(request): Json<NewAddress>,
     Path(person_uuid): Path<Uuid>,
+    Json(request): Json<NewAddress>,
 ) -> Result<StatusCode, ApiError> {
     request.validate()?;
 

@@ -240,8 +240,8 @@ async fn delete_person(
 async fn update_person(
     user: WriteUser,
     db: Extension<PgPool>,
-    Json(request): Json<UpdatePerson>,
     Path(person_uuid): Path<Uuid>,
+    Json(request): Json<UpdatePerson>,
 ) -> Result<Json<Person>, ApiError> {
     let existing = sqlx::query_as!(
         Person,
