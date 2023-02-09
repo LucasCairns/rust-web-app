@@ -2,8 +2,9 @@ use axum::{
     async_trait,
     extract::FromRequestParts,
     headers::{authorization::Bearer, Authorization},
+    http::request::Parts,
     response::{IntoResponse, Response},
-    Json, TypedHeader, http::request::Parts,
+    Json, TypedHeader,
 };
 use hyper::StatusCode;
 use jsonwebtoken::{

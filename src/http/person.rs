@@ -169,7 +169,10 @@ async fn get_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
-    info!("Client '{}' retrieved person '{}'", person.id, user.username);
+    info!(
+        "Client '{}' retrieved person '{}'",
+        person.id, user.username
+    );
 
     Ok(Json(person))
 }
@@ -213,7 +216,10 @@ async fn delete_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
-    info!("Client '{}' deleted person '{}'", user.username, person_uuid);
+    info!(
+        "Client '{}' deleted person '{}'",
+        user.username, person_uuid
+    );
 
     Ok(())
 }

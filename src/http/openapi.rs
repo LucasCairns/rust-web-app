@@ -47,5 +47,5 @@ impl Modify for SecurityAddon {
 
 pub fn router() -> Router {
     Router::new()
-        .merge(SwaggerUi::new("/swagger-ui/*tail").url("/api-doc/openapi.json", ApiDoc::openapi()))
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", ApiDoc::openapi()))
 }
