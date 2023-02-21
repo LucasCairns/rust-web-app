@@ -40,3 +40,4 @@ cargo run
 ```
 
 The application should now be running on [localhost:8080](http://localhost:8080) along with the [swagger docs](http://localhost:8080/swagger-ui/)
+

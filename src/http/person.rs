@@ -169,7 +169,10 @@ async fn get_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
-    info!("Client '{}' retrieved person '{}'", person.id, user.username);
+    info!(
+        "Client '{}' retrieved person '{}'",
+        person.id, user.username
+    );
 
     Ok(Json(person))
 }
@@ -213,7 +216,10 @@ async fn delete_person(
         _ => ApiError::DatabaseError(e),
     })?;
 
-    info!("Client '{}' deleted person '{}'", user.username, person_uuid);
+    info!(
+        "Client '{}' deleted person '{}'",
+        user.username, person_uuid
+    );
 
     Ok(())
 }
@@ -240,8 +246,8 @@ async fn delete_person(
 async fn update_person(
     user: WriteUser,
     db: Extension<PgPool>,
-    Json(request): Json<UpdatePerson>,
     Path(person_uuid): Path<Uuid>,
+    Json(request): Json<UpdatePerson>,
 ) -> Result<Json<Person>, ApiError> {
     let existing = sqlx::query_as!(
         Person,
