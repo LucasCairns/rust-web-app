@@ -14,7 +14,7 @@ async fn main() {
 mod tests {
     use super::*;
     use axum::{
-        body::Body,
+        body::{Body, HttpBody},
         http::{Request, StatusCode},
     };
     use rust_web_app::app;
@@ -26,7 +26,7 @@ mod tests {
         let database_pool = db::init().await.unwrap();
         let app = app(database_pool);
 
-        let response = app
+        let mut response = app
             .oneshot(
                 Request::builder()
                     .method("GET")
@@ -38,10 +38,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+        
+        let response_body = response.data().await.unwrap().unwrap();
 
-        let response_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-
-        assert_eq!(&response_body[..], "Hello, world!".as_bytes());
+        assert_eq!(response_body, "Hello, world!");
     }
 
     #[tokio::test]
