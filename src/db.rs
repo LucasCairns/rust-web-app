@@ -21,15 +21,16 @@ pub enum Error {
 }
 
 pub async fn init() -> Result<PgPool, Error> {
-    let mut connect_options = env::var("DATABASE_URL")?.parse::<PgConnectOptions>()?;
-    connect_options.log_statements(LevelFilter::Debug);
-    connect_options.log_slow_statements(LevelFilter::Warn, Duration::from_millis(100));
+    let connect_options = env::var("DATABASE_URL")?
+        .parse::<PgConnectOptions>()?
+        .log_statements(LevelFilter::Debug)
+        .log_slow_statements(LevelFilter::Warn, Duration::from_millis(100));
 
     let schema_name = env::var("DATABASE_SCHEMA").unwrap_or_else(|_| "public".to_owned());
 
     let pool = PgPoolOptions::new()
         .max_connections(20)
-        .connect_with(connect_options)
+        .connect_with(connect_options.clone())
         .await?;
 
     sqlx::query(format!("CREATE SCHEMA IF NOT EXISTS {schema_name}").as_str())
