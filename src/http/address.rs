@@ -120,7 +120,7 @@ pub async fn remove_address(
         "#,
         address_uuid
     )
-    .fetch_all(&mut tx)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => {
@@ -136,7 +136,7 @@ pub async fn remove_address(
         "#,
         address_uuid
     )
-    .fetch_one(&mut tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| match e {
         sqlx::Error::RowNotFound => {
