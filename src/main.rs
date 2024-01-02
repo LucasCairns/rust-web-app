@@ -38,7 +38,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        
+
         let response_body = response.data().await.unwrap().unwrap();
 
         assert_eq!(response_body, "Hello, world!");
