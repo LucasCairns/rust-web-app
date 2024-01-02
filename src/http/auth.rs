@@ -10,11 +10,11 @@ use hyper::StatusCode;
 use jsonwebtoken::{
     decode, decode_header,
     jwk::{AlgorithmParameters, JwkSet},
-    DecodingKey, Validation,
+    Algorithm, DecodingKey, Validation,
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::env;
+use std::{env, str::FromStr};
 
 pub enum AuthError {
     MissingToken,
@@ -98,11 +98,15 @@ where
 
         let jwks = get_jwks().await?;
 
-        let decoded = match jwks.find(&kid) {
+        let decoded_token = match jwks.find(&kid) {
             Some(j) => match j.algorithm {
                 AlgorithmParameters::RSA(ref rsa) => {
                     let decoding_key = DecodingKey::from_rsa_components(&rsa.n, &rsa.e).unwrap();
-                    let validation = Validation::new(j.common.algorithm.unwrap());
+
+                    let validation = Validation::new(
+                        Algorithm::from_str(j.common.key_algorithm.unwrap().to_string().as_str())
+                            .unwrap(),
+                    );
 
                     decode::<Claims>(bearer_token.token(), &decoding_key, &validation)
                         .map_err(AuthError::from)
@@ -112,7 +116,7 @@ where
             None => Err(AuthError::InvalidToken),
         }?;
 
-        Ok(decoded.claims)
+        Ok(decoded_token.claims)
     }
 }
 
