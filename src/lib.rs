@@ -1,4 +1,4 @@
-use axum::{routing::get, Extension, Router, Server};
+use axum::{routing::get, Extension, Router};
 use sqlx::PgPool;
 use std::{env, net::SocketAddr};
 
@@ -27,8 +27,8 @@ pub async fn serve(database_pool: PgPool) {
 
     tracing::info!("Server listening on: {}", addr);
 
-    Server::bind(&addr)
-        .serve(app(database_pool).into_make_service())
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app(database_pool).into_make_service())
         .await
         .expect("Failed to start server")
 }
