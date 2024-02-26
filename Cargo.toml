@@ -11,7 +11,7 @@ axum-extra = {version = "0.9.2", features = ["typed-header"]}
 axum-macros = "0.4"
 dotenvy = "0.15"
 http-body-util = "0.1.0"
-hyper = {version = "1.1.0", features = ["full"]}
+hyper = {version = "1.2.0", features = ["full"]}
 jsonwebtoken = "9.2.0"
 reqwest = {version = "0.11", features = ["json"]}
 serde = {version = "1.0", features = ["derive"]}
