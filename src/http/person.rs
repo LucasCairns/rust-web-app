@@ -17,7 +17,7 @@ pub struct NewPerson {
     first_name: String,
     #[validate(length(min = 1, max = 64))]
     family_name: String,
-    #[validate(custom = "date_not_in_future")]
+    #[validate(custom(function = "date_not_in_future"))]
     date_of_birth: Date,
 }
 
@@ -35,7 +35,7 @@ pub struct UpdatePerson {
     first_name: Option<String>,
     #[validate(length(min = 1, max = 64))]
     family_name: Option<String>,
-    #[validate(custom = "date_not_in_future")]
+    #[validate(custom(function = "date_not_in_future"))]
     date_of_birth: Option<Date>,
 }
 
