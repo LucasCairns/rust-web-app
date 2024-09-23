@@ -174,11 +174,10 @@ dependencies = [
 
 [[package]]
 name = "axum-macros"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00c055ee2d014ae5981ce1016374e8213682aa14d9bf40e48ab48b5f3ef20eaa"
+checksum = "57d123550fa8d071b7255cb0cc04dc302baa6c8c4a79f55701552684d8399bce"
 dependencies = [
- "heck 0.4.1",
  "proc-macro2",
  "quote",
  "syn 2.0.72",
@@ -760,12 +759,6 @@ checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
 dependencies = [
  "http",
 ]
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -2243,7 +2236,7 @@ checksum = "1a099220ae541c5db479c6424bdf1b200987934033c2584f79a0e1693601e776"
 dependencies = [
  "dotenvy",
  "either",
- "heck 0.5.0",
+ "heck",
  "hex",
  "once_cell",
  "proc-macro2",
