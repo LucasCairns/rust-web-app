@@ -8,6 +8,8 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
+use crate::http::error::ErrorResponse;
+
 use super::auth::{ReadUser, WriteUser};
 use super::error::ApiError;
 
@@ -290,7 +292,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/person", get(list_people).post(create_person))
         .route(
-            "/person/:person_uuid",
+            "/person/{person_uuid}",
             get(get_person).put(update_person).delete(delete_person),
         )
 }

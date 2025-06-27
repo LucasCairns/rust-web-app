@@ -11,6 +11,8 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::http::error::ErrorResponse;
+
 use super::{auth::WriteUser, error::ApiError};
 
 #[derive(Debug, Validate, Deserialize, ToSchema)]
@@ -157,6 +159,6 @@ pub async fn remove_address(
 
 pub fn router() -> Router {
     Router::new()
-        .route("/person/:person_uuid/address", post(add_address))
-        .route("/address/:address_uuid", delete(remove_address))
+        .route("/person/{person_uuid}/address", post(add_address))
+        .route("/address/{address_uuid}", delete(remove_address))
 }

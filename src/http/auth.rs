@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::FromRequestParts,
     http::request::Parts,
     response::{IntoResponse, Response},
@@ -79,7 +78,6 @@ pub struct Claims {
     authorities: Vec<String>,
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for Claims
 where
     S: Send + Sync,
@@ -136,7 +134,6 @@ impl From<Claims> for ReadUser {
     }
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for ReadUser
 where
     S: Send + Sync,
@@ -168,7 +165,6 @@ impl From<Claims> for WriteUser {
     }
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for WriteUser
 where
     S: Send + Sync,

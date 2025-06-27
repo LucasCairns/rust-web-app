@@ -24,7 +24,7 @@ pub struct ErrorResponse<'a> {
     #[serde_as(as = "DisplayFromStr")]
     #[schema(value_type=String)]
     message: &'a ApiError,
-    #[schema(value_type=Option<Any>)]
+    #[schema(value_type=Option<& ()>)]
     errors: Option<&'a ValidationErrors>,
 }
 
