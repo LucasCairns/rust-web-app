@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
+use crate::http::auth::Scoped;
 use crate::http::error::ErrorResponse;
 
 use super::auth::{ReadUser, WriteUser};
@@ -69,8 +70,8 @@ pub struct Person {
     )
 )]
 async fn create_person(
-    user: WriteUser,
-    db: Extension<PgPool>,
+    user: Scoped<WriteUser>,
+    Extension(pool): Extension<PgPool>,
     Json(request): Json<NewPerson>,
 ) -> Result<(StatusCode, Json<Person>), ApiError> {
     request.validate()?;
@@ -86,15 +87,8 @@ async fn create_person(
         request.family_name,
         request.date_of_birth
     )
-    .fetch_one(&*db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::Database(dbe) if dbe.constraint().is_some() => ApiError::Conflict(format!(
-            "Unable to create person due to constraint: {}",
-            dbe.constraint().unwrap()
-        )),
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .fetch_one(&pool)
+    .await?;
 
     info!("Client '{}' created person '{}'", user.username, person.id);
 
@@ -115,14 +109,17 @@ async fn create_person(
         ("bearer" = [])
     )
 )]
-async fn list_people(user: ReadUser, db: Extension<PgPool>) -> Result<Json<Vec<Person>>, ApiError> {
+async fn list_people(
+    user: Scoped<ReadUser>,
+    Extension(pool): Extension<PgPool>,
+) -> Result<Json<Vec<Person>>, ApiError> {
     let people = sqlx::query_as!(
         Person,
         r#"
             SELECT uuid AS id, created, last_edited, first_name, family_name, date_of_birth FROM person;
         "#
     )
-    .fetch_all(&*db)
+    .fetch_all(&pool)
     .await?;
 
     info!(
@@ -153,8 +150,8 @@ async fn list_people(user: ReadUser, db: Extension<PgPool>) -> Result<Json<Vec<P
     )
 )]
 async fn get_person(
-    user: ReadUser,
-    db: Extension<PgPool>,
+    user: Scoped<ReadUser>,
+    Extension(pool): Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
 ) -> Result<Json<Person>, ApiError> {
     let person = sqlx::query_as!(
@@ -164,12 +161,8 @@ async fn get_person(
         "#,
         person_uuid
     )
-    .fetch_one(&*db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}")),
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .fetch_one(&pool)
+    .await?;
 
     info!(
         "Client '{}' retrieved person '{}'",
@@ -198,8 +191,8 @@ async fn get_person(
     )
 )]
 async fn delete_person(
-    user: WriteUser,
-    db: Extension<PgPool>,
+    user: Scoped<WriteUser>,
+    Extension(pool): Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
     sqlx::query!(
@@ -209,14 +202,8 @@ async fn delete_person(
         "#,
         person_uuid
     )
-    .fetch_one(&*db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => {
-            ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}"))
-        }
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .fetch_one(&pool)
+    .await?;
 
     info!(
         "Client '{}' deleted person '{}'",
@@ -246,8 +233,8 @@ async fn delete_person(
     )
 )]
 async fn update_person(
-    user: WriteUser,
-    db: Extension<PgPool>,
+    user: Scoped<WriteUser>,
+    Extension(pool): Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
     Json(request): Json<UpdatePerson>,
 ) -> Result<Json<Person>, ApiError> {
@@ -258,12 +245,8 @@ async fn update_person(
         "#,
         person_uuid
     )
-    .fetch_one(&*db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}")),
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .fetch_one(&pool)
+    .await?;
 
     let updated_person = sqlx::query_as!(
         Person,
@@ -277,7 +260,7 @@ async fn update_person(
         request.date_of_birth.unwrap_or(existing.date_of_birth),
         person_uuid
     )
-    .fetch_one(&*db)
+    .fetch_one(&pool)
     .await?;
 
     info!(
@@ -305,7 +288,7 @@ mod tests {
     use super::NewPerson;
 
     #[test]
-    fn new_person_is_valid_when_dob_is_in_the_future() {
+    fn new_person_is_valid_when_dob_is_in_the_past() {
         let new_person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
