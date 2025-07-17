@@ -14,21 +14,36 @@ use jsonwebtoken::{
     jwk::{AlgorithmParameters, JwkSet},
     Algorithm, DecodingKey, Validation,
 };
-use serde::Deserialize;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{env, str::FromStr};
+use std::{
+    collections::HashSet,
+    env,
+    ops::Deref,
+    str::FromStr,
+    time::{Duration, Instant},
+};
+use tokio::sync::RwLock;
+use utoipa::ToSchema;
 
+#[derive(thiserror::Error, Debug, Serialize, ToSchema)]
 pub enum AuthError {
+    #[error("Missing token")]
     MissingToken,
+    #[error("Invalid token")]
     InvalidToken,
+    #[error("Token expired")]
     ExpiredToken,
+    #[error("Unable to verify JWT token")]
     Unavailable,
+    #[error("Client requires the scope: {0}")]
     MissingScope(String),
 }
 
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
+        let (status, error_message) = match &self {
             AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing token".to_owned()),
             AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token".to_owned()),
             AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Token expired".to_owned()),
@@ -41,41 +56,63 @@ impl IntoResponse for AuthError {
                 format!("Client requires the scope: {}", scope),
             ),
         };
+
         let body = Json(json!({
             "message": error_message,
+            "error": format!("{:?}", self)
         }));
         (status, body).into_response()
     }
 }
 
-async fn get_jwks() -> Result<JwkSet, AuthError> {
-    let auth_url = env::var("AUTH_URL").map_err(|_| AuthError::Unavailable)?;
-
-    reqwest::get(format!("{auth_url}/.well-known/jwks.json"))
-        .await
-        .map_err(|_| AuthError::Unavailable)?
-        .json::<JwkSet>()
-        .await
-        .map_err(|_| AuthError::Unavailable)
-}
-
 impl From<jsonwebtoken::errors::Error> for AuthError {
-    fn from(error: jsonwebtoken::errors::Error) -> Self {
-        match error.kind() {
+    fn from(err: jsonwebtoken::errors::Error) -> Self {
+        match err.kind() {
             jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::ExpiredToken,
             _ => AuthError::InvalidToken,
         }
     }
 }
 
-#[allow(dead_code)]
+static JWK_CACHE: Lazy<RwLock<(Option<JwkSet>, Instant)>> =
+    Lazy::new(|| RwLock::new((None, Instant::now())));
+
+async fn get_jwks_cached() -> Result<JwkSet, AuthError> {
+    let mut cache = JWK_CACHE.write().await;
+    if let (Some(jwks), ts) = (&cache.0, cache.1) {
+        if ts.elapsed() < Duration::from_secs(300) {
+            return Ok(jwks.clone());
+        }
+    }
+
+    let auth_url = env::var("AUTH_URL").map_err(|_| AuthError::Unavailable)?;
+    let fresh = reqwest::get(format!("{auth_url}/.well-known/jwks.json"))
+        .await
+        .map_err(|_| AuthError::Unavailable)?
+        .json::<JwkSet>()
+        .await
+        .map_err(|_| AuthError::Unavailable)?;
+
+    *cache = (Some(fresh.clone()), Instant::now());
+    Ok(fresh)
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Claims {
-    iss: String,
-    sub: String,
-    exp: usize,
-    scope: Vec<String>,
-    authorities: Vec<String>,
+    pub sub: String,
+    #[serde(deserialize_with = "deserialize_scopes")]
+    pub scope: HashSet<String>,
+    // iss: String,
+    // exp: usize,
+    // pub authorities: Vec<String>,
+}
+
+fn deserialize_scopes<'de, D>(deserializer: D) -> Result<HashSet<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = String::deserialize(deserializer)?;
+    Ok(raw.split_whitespace().map(|s| s.to_string()).collect())
 }
 
 impl<S> FromRequestParts<S> for Claims
@@ -85,39 +122,67 @@ where
     type Rejection = AuthError;
 
     async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let TypedHeader(Authorization(bearer_token)) =
+        let TypedHeader(Authorization(bearer)) =
             TypedHeader::<Authorization<Bearer>>::from_request_parts(req, state)
                 .await
                 .map_err(|_| AuthError::MissingToken)?;
 
-        let header = decode_header(bearer_token.token())?;
+        let header = decode_header(bearer.token())?;
+        let kid = header.kid.ok_or(AuthError::InvalidToken)?;
 
-        let kid = match header.kid {
-            Some(k) => k,
-            None => return Err(AuthError::InvalidToken),
+        let jwks = get_jwks_cached().await?;
+        let jwk = jwks.find(&kid).ok_or(AuthError::InvalidToken)?;
+
+        let alg = jwk
+            .common
+            .key_algorithm
+            .as_ref()
+            .and_then(|alg| Algorithm::from_str(&alg.to_string()).ok())
+            .ok_or(AuthError::InvalidToken)?;
+
+        let decoding_key = match &jwk.algorithm {
+            AlgorithmParameters::RSA(rsa) => DecodingKey::from_rsa_components(&rsa.n, &rsa.e)
+                .map_err(|_| AuthError::InvalidToken)?,
+            _ => return Err(AuthError::InvalidToken),
         };
 
-        let jwks = get_jwks().await?;
+        let validation = Validation::new(alg);
+        let token_data = decode::<Claims>(bearer.token(), &decoding_key, &validation)?;
+        Ok(token_data.claims)
+    }
+}
 
-        let decoded_token = match jwks.find(&kid) {
-            Some(j) => match j.algorithm {
-                AlgorithmParameters::RSA(ref rsa) => {
-                    let decoding_key = DecodingKey::from_rsa_components(&rsa.n, &rsa.e).unwrap();
+pub trait RequiredScope {
+    fn required_scope() -> &'static str;
+    fn from_claims(claims: Claims) -> Self;
+}
 
-                    let validation = Validation::new(
-                        Algorithm::from_str(j.common.key_algorithm.unwrap().to_string().as_str())
-                            .unwrap(),
-                    );
+pub struct Scoped<T>(pub T);
 
-                    decode::<Claims>(bearer_token.token(), &decoding_key, &validation)
-                        .map_err(AuthError::from)
-                }
-                _ => Err(AuthError::InvalidToken),
-            },
-            None => Err(AuthError::InvalidToken),
-        }?;
+impl<S, T> FromRequestParts<S> for Scoped<T>
+where
+    S: Send + Sync,
+    T: RequiredScope + Send,
+{
+    type Rejection = AuthError;
 
-        Ok(decoded_token.claims)
+    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let claims = Claims::from_request_parts(req, state).await?;
+        let required = T::required_scope();
+
+        if claims.scope.contains(required) {
+            Ok(Scoped(T::from_claims(claims)))
+        } else {
+            Err(AuthError::MissingScope(required.to_owned()))
+        }
+    }
+}
+
+impl<T> Deref for Scoped<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -126,28 +191,14 @@ pub struct ReadUser {
     pub username: String,
 }
 
-impl From<Claims> for ReadUser {
-    fn from(claims: Claims) -> Self {
-        ReadUser {
-            username: claims.sub,
-        }
+impl RequiredScope for ReadUser {
+    fn required_scope() -> &'static str {
+        "read"
     }
-}
 
-impl<S> FromRequestParts<S> for ReadUser
-where
-    S: Send + Sync,
-{
-    type Rejection = AuthError;
-
-    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let claims = Claims::from_request_parts(req, state).await?;
-        let scope = String::from("read");
-
-        if claims.scope.contains(&scope) {
-            Ok(ReadUser::from(claims))
-        } else {
-            Err(AuthError::MissingScope(scope))
+    fn from_claims(claims: Claims) -> Self {
+        Self {
+            username: claims.sub,
         }
     }
 }
@@ -157,28 +208,14 @@ pub struct WriteUser {
     pub username: String,
 }
 
-impl From<Claims> for WriteUser {
-    fn from(claims: Claims) -> Self {
-        WriteUser {
-            username: claims.sub,
-        }
+impl RequiredScope for WriteUser {
+    fn required_scope() -> &'static str {
+        "write"
     }
-}
 
-impl<S> FromRequestParts<S> for WriteUser
-where
-    S: Send + Sync,
-{
-    type Rejection = AuthError;
-
-    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let claims = Claims::from_request_parts(req, state).await?;
-        let scope = String::from("write");
-
-        if claims.scope.contains(&scope) {
-            Ok(WriteUser::from(claims))
-        } else {
-            Err(AuthError::MissingScope(scope))
+    fn from_claims(claims: Claims) -> Self {
+        Self {
+            username: claims.sub,
         }
     }
 }

@@ -11,7 +11,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::http::error::ErrorResponse;
+use crate::http::{auth::Scoped, error::ErrorResponse};
 
 use super::{auth::WriteUser, error::ApiError};
 
@@ -47,8 +47,8 @@ pub struct NewAddress {
     )
 )]
 pub async fn add_address(
-    user: WriteUser,
-    db: Extension<PgPool>,
+    user: Scoped<WriteUser>,
+    Extension(pool): Extension<PgPool>,
     Path(person_uuid): Path<Uuid>,
     Json(request): Json<NewAddress>,
 ) -> Result<StatusCode, ApiError> {
@@ -73,14 +73,8 @@ pub async fn add_address(
         request.postcode,
         person_uuid,
     )
-    .fetch_one(&*db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => {
-            ApiError::NotFound(format!("Person not found for the UUID: {person_uuid}"))
-        }
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .fetch_one(&pool)
+    .await?;
 
     info!(
         "Client '{}' created an address for the person '{}'",
@@ -109,11 +103,11 @@ pub async fn add_address(
     )
 )]
 pub async fn remove_address(
-    user: WriteUser,
-    db: Extension<PgPool>,
+    user: Scoped<WriteUser>,
+    Extension(pool): Extension<PgPool>,
     Path(address_uuid): Path<Uuid>,
 ) -> Result<(), ApiError> {
-    let mut tx = db.begin().await?;
+    let mut tx = pool.begin().await?;
 
     sqlx::query!(
         r#"
@@ -123,13 +117,7 @@ pub async fn remove_address(
         address_uuid
     )
     .fetch_all(&mut *tx)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => {
-            ApiError::NotFound(format!("Person not found with the address: {address_uuid}"))
-        }
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .await?;
 
     sqlx::query!(
         r#"
@@ -139,13 +127,7 @@ pub async fn remove_address(
         address_uuid
     )
     .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::RowNotFound => {
-            ApiError::NotFound(format!("Address not found for the UUID: {address_uuid}"))
-        }
-        _ => ApiError::DatabaseError(e),
-    })?;
+    .await?;
 
     tx.commit().await?;
 
