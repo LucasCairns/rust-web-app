@@ -15,19 +15,29 @@ use jsonwebtoken::{
     Algorithm, DecodingKey, Validation,
 };
 use once_cell::sync::Lazy;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
-    collections::HashSet, env, ops::Deref, str::FromStr, time::{Duration, Instant}
+    collections::HashSet,
+    env,
+    ops::Deref,
+    str::FromStr,
+    time::{Duration, Instant},
 };
 use tokio::sync::RwLock;
+use utoipa::ToSchema;
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug, Serialize, ToSchema)]
 pub enum AuthError {
+    #[error("Missing token")]
     MissingToken,
+    #[error("Invalid token")]
     InvalidToken,
+    #[error("Token expired")]
     ExpiredToken,
+    #[error("Unable to verify JWT token")]
     Unavailable,
+    #[error("Client requires the scope: {0}")]
     MissingScope(String),
 }
 
@@ -131,9 +141,8 @@ where
             .ok_or(AuthError::InvalidToken)?;
 
         let decoding_key = match &jwk.algorithm {
-            AlgorithmParameters::RSA(rsa) => {
-                DecodingKey::from_rsa_components(&rsa.n, &rsa.e).map_err(|_| AuthError::InvalidToken)?
-            }
+            AlgorithmParameters::RSA(rsa) => DecodingKey::from_rsa_components(&rsa.n, &rsa.e)
+                .map_err(|_| AuthError::InvalidToken)?,
             _ => return Err(AuthError::InvalidToken),
         };
 
