@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [dependencies]
 axum = {version = "0.8.7"}
-axum-extra = {version = "0.12.1", features = ["typed-header"]}
+axum-extra = {version = "0.12.2", features = ["typed-header"]}
 axum-macros = "0.5.0"
 dotenvy = "0.15"
 http-body-util = "0.1.3"
