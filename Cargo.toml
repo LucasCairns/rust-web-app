@@ -20,7 +20,7 @@ serde_json = "1.0.149"
 serde_with = "3.16.1"
 sqlx = {version = "0.8.6", features = ["migrate", "postgres", "runtime-tokio", "tls-rustls", "time", "uuid"]}
 thiserror = "2.0.17"
-time = {version = "0.3.45", features = ["serde", "serde-human-readable", "macros"]}
+time = {version = "0.3.46", features = ["serde", "serde-human-readable", "macros"]}
 tokio = {version = "1.49.0", features = ["full"]}
 tower = "0.5.3"
 tracing = "0.1.44"
