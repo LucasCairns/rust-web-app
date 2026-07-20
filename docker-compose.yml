@@ -1,29 +1,33 @@
-version: "3"
 services:
-  oauth:
-    image: quay.io/hmpps/hmpps-auth:latest
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
     networks:
-      - rust_web_app    
+      - rust_web_app
     ports:
-      - "9090:9090"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9090/auth/health" ]
+      - "8081:8080"
     environment:
-      - SERVER_PORT=9090
-      - SPRING_PROFILES_ACTIVE=dev
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: "8080"
+    command: start-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/realms/master"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   postgres:
-    image: postgres
+    image: postgres:16
     restart: always
     ports:
-      - 5432:5432
+      - "5432:5432"
     networks:
       - rust_web_app
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: dev
     tmpfs:
-      - /var/lib/postgresql
+      - /var/lib/postgresql/data
 
 networks:
   rust_web_app:
