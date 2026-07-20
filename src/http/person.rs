@@ -285,30 +285,175 @@ mod tests {
     use time::macros::date;
     use validator::Validate;
 
-    use super::NewPerson;
+    use super::{NewPerson, UpdatePerson};
+
+    // ── NewPerson validation ───────────────────────────────
 
     #[test]
-    fn new_person_is_valid_when_dob_is_in_the_past() {
-        let new_person = NewPerson {
+    fn new_person_is_valid_when_all_fields_are_present() {
+        let person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(1900 - 1 - 1),
+            date_of_birth: date!(1970-1-15),
         };
 
-        assert!(new_person.validate().is_ok(), "Should be a valid person");
+        assert!(person.validate().is_ok());
     }
 
     #[test]
-    fn new_person_is_invalid_when_dob_is_in_the_future() {
-        let new_person = NewPerson {
-            first_name: "John".to_owned(),
+    fn new_person_is_invalid_when_first_name_is_empty() {
+        let person = NewPerson {
+            first_name: "".to_owned(),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(2050 - 1 - 1),
+            date_of_birth: date!(1980-5-20),
         };
 
-        assert!(
-            new_person.validate().is_err(),
-            "Should return a validation error"
-        );
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn new_person_is_invalid_when_family_name_is_empty() {
+        let person = NewPerson {
+            first_name: "Jane".to_owned(),
+            family_name: "".to_owned(),
+            date_of_birth: date!(1990-11-3),
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn new_person_is_valid_when_names_are_max_length() {
+        let sixty_four = "a".repeat(64);
+        let person = NewPerson {
+            first_name: sixty_four.clone(),
+            family_name: sixty_four,
+            date_of_birth: date!(2000-1-1),
+        };
+
+        assert!(person.validate().is_ok());
+    }
+
+    #[test]
+    fn new_person_is_invalid_when_first_name_exceeds_max_length() {
+        let person = NewPerson {
+            first_name: "a".repeat(65),
+            family_name: "Doe".to_owned(),
+            date_of_birth: date!(1985-7-4),
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn new_person_is_invalid_when_family_name_exceeds_max_length() {
+        let person = NewPerson {
+            first_name: "Jane".to_owned(),
+            family_name: "a".repeat(65),
+            date_of_birth: date!(1985-7-4),
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn new_person_is_valid_when_dob_is_today() {
+        let person = NewPerson {
+            first_name: "Alice".to_owned(),
+            family_name: "Smith".to_owned(),
+            date_of_birth: time::OffsetDateTime::now_utc().date(),
+        };
+
+        assert!(person.validate().is_ok(), "Today's date should be accepted (> check, not >=)");
+    }
+
+    #[test]
+    fn new_person_is_invalid_when_dob_is_far_future() {
+        let person = NewPerson {
+            first_name: "John".to_owned(),
+            family_name: "Doe".to_owned(),
+            date_of_birth: date!(2050-1-1),
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    // ── UpdatePerson validation ────────────────────────────
+
+    #[test]
+    fn update_person_is_valid_when_all_fields_are_none() {
+        let person = UpdatePerson {
+            first_name: None,
+            family_name: None,
+            date_of_birth: None,
+        };
+
+        assert!(person.validate().is_ok());
+    }
+
+    #[test]
+    fn update_person_is_valid_with_partial_fields() {
+        let person = UpdatePerson {
+            first_name: Some("Updated".to_owned()),
+            family_name: None,
+            date_of_birth: None,
+        };
+
+        assert!(person.validate().is_ok());
+    }
+
+    #[test]
+    fn update_person_is_invalid_when_first_name_is_empty_string() {
+        let person = UpdatePerson {
+            first_name: Some("".to_owned()),
+            family_name: None,
+            date_of_birth: None,
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn update_person_is_invalid_when_first_name_exceeds_max_length() {
+        let person = UpdatePerson {
+            first_name: Some("a".repeat(65)),
+            family_name: None,
+            date_of_birth: None,
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn update_person_is_invalid_when_family_name_is_empty_string() {
+        let person = UpdatePerson {
+            first_name: None,
+            family_name: Some("".to_owned()),
+            date_of_birth: None,
+        };
+
+        assert!(person.validate().is_err());
+    }
+
+    #[test]
+    fn update_person_is_valid_when_dob_is_updated_to_past_date() {
+        let person = UpdatePerson {
+            first_name: None,
+            family_name: None,
+            date_of_birth: Some(date!(1990-6-15)),
+        };
+
+        assert!(person.validate().is_ok());
+    }
+
+    #[test]
+    fn update_person_is_invalid_when_dob_is_future() {
+        let person = UpdatePerson {
+            first_name: None,
+            family_name: None,
+            date_of_birth: Some(date!(2099-12-31)),
+        };
+
+        assert!(person.validate().is_err());
     }
 }
