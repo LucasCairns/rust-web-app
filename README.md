@@ -57,7 +57,7 @@ flowchart TB
 
     C1 -->|POST /token| Keycloak
     C2 -->|Authorization: Bearer JWT| RustApp
-    RustApp -.->|Fetch JWKS (cached)| JWKS
+    RustApp -.->|"Fetch JWKS (cached)"| JWKS
     DB_POOL --> TABLES
 ```
 
