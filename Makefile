@@ -12,7 +12,7 @@ KC_URL          := http://localhost:8081
 .PHONY: all up down build lint test clean help
 
 ## Default target - ensure infra is ready and compile
-all: up build
+all: run
 
 help:
 	@echo "Available targets:"
@@ -41,6 +41,9 @@ down:
 
 build: up
 	cargo build
+
+run: up
+	cargo run
 
 lint: up
 	cargo clippy --all-targets

@@ -1,15 +1,12 @@
+use once_cell::sync::Lazy;
+use sqlx::{
+    migrate::MigrateError, pool::PoolOptions, postgres::PgConnectOptions, postgres::PgPool,
+    ConnectOptions, AssertSqlSafe
+};
 use std::{
     env::{self, VarError},
     path::Path,
     time::Duration,
-};
-
-use once_cell::sync::Lazy;
-use sqlx::{
-    migrate::MigrateError,
-    pool::PoolOptions,
-    postgres::{PgConnectOptions, PgPool},
-    ConnectOptions,
 };
 use tracing::info;
 
@@ -25,9 +22,8 @@ pub enum Error {
     Migrate(#[from] MigrateError),
 }
 
-static SCHEMA_RE: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(r"^([A-Za-z_][0-9A-Za-z_]*)$").unwrap()
-});
+static SCHEMA_RE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"^([A-Za-z_][0-9A-Za-z_]*)$").unwrap());
 
 /// Ensure `name` matches SQL identifier rules.
 fn validate_schema_name(name: &str) -> Result<(), Error> {
@@ -50,14 +46,13 @@ pub async fn init() -> Result<PgPool, Error> {
     let database_url = env::var("DATABASE_URL")?;
     let schema_name = env::var("DATABASE_SCHEMA").unwrap_or_else(|_| "public".to_owned());
 
-    validate_schema_name(&schema_name)?;
-
     let max_connections: u32 = env::var("DB_POOL_SIZE")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
 
-    let options = database_url.parse::<PgConnectOptions>()?
+    let options = database_url
+        .parse::<PgConnectOptions>()?
         .options([("search_path", &schema_name)])
         .log_statements(tracing::log::LevelFilter::Debug)
         .log_slow_statements(tracing::log::LevelFilter::Warn, Duration::from_millis(250));
@@ -70,7 +65,11 @@ pub async fn init() -> Result<PgPool, Error> {
         .connect_with(options)
         .await?;
 
-    sqlx::query(&format!("CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+    validate_schema_name(&schema_name)?;
+
+    // Schema name is validated above with regex to prevent SQL injection
+    let sql = format!("CREATE SCHEMA IF NOT EXISTS {schema_name}");
+    sqlx::query(AssertSqlSafe(sql))
         .execute(&pool)
         .await?;
 

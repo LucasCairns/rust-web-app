@@ -9,11 +9,11 @@ use crate::http::auth::AuthError;
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
     #[error("Invalid request")]
-    ValidationError(#[from] ValidationErrors),
+    Validation(#[from] ValidationErrors),
     #[error("Database error")]
-    DatabaseError(#[from] sqlx::Error),
+    Database(#[from] sqlx::Error),
     #[error("Auth error")]
-    AuthError(#[from] AuthError),
+    Auth(#[from] AuthError),
 }
 
 #[derive(Serialize, ToSchema)]
@@ -29,10 +29,12 @@ const POSTGRES_UNIQUE_VIOLATION: &str = "23505";
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let (status, message, errors) = match &self {
-            ApiError::ValidationError(validation_errors) => {
-                (StatusCode::BAD_REQUEST, self.to_string(), serde_json::to_value(validation_errors).ok())
-            }
-            ApiError::DatabaseError(db_error) => {
+            ApiError::Validation(validation_errors) => (
+                StatusCode::BAD_REQUEST,
+                self.to_string(),
+                serde_json::to_value(validation_errors).ok(),
+            ),
+            ApiError::Database(db_error) => {
                 let (status, message) = match db_error {
                     sqlx::Error::RowNotFound => {
                         (StatusCode::NOT_FOUND, "Resource not found".to_string())
@@ -63,7 +65,7 @@ impl IntoResponse for ApiError {
                 };
                 (status, message, None)
             }
-            ApiError::AuthError(auth_err) => {
+            ApiError::Auth(auth_err) => {
                 let (status, message) = match auth_err {
                     AuthError::MissingToken => (StatusCode::UNAUTHORIZED, auth_err.to_string()),
                     AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, auth_err.to_string()),

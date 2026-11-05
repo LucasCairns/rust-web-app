@@ -114,10 +114,7 @@ async fn get_jwks_cached() -> Result<Arc<JwkSet>, AuthError> {
 pub struct Claims {
     pub sub: String,
     /// Standard OAuth2 scope claim (space-separated).
-    #[serde(
-        default,
-        deserialize_with = "deserialize_scopes"
-    )]
+    #[serde(default, deserialize_with = "deserialize_scopes")]
     pub scope: HashSet<String>,
     pub iss: String,
     /// Keycloak resource_access roles.
@@ -271,10 +268,7 @@ mod tests {
     fn claims_has_scope_when_scope_claim_present() {
         let mut claims = Claims {
             sub: "user-123".to_string(),
-            scope: ["read", "write"]
-                .into_iter()
-                .map(String::from)
-                .collect(),
+            scope: ["read", "write"].into_iter().map(String::from).collect(),
             iss: "http://localhost:8081/realms/test".to_string(),
             resource_access: HashMap::new(),
         };
@@ -309,10 +303,7 @@ mod tests {
     #[test]
     fn claims_has_scope_prefers_standard_scope() {
         let mut resource_access = HashMap::new();
-        resource_access.insert(
-            "rust-web-app".to_string(),
-            vec!["admin".to_string()],
-        );
+        resource_access.insert("rust-web-app".to_string(), vec!["admin".to_string()]);
 
         let mut scope = HashSet::new();
         scope.insert("read".to_string());

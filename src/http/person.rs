@@ -294,7 +294,7 @@ mod tests {
         let person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(1970-1-15),
+            date_of_birth: date!(1970 - 1 - 15),
         };
 
         assert!(person.validate().is_ok());
@@ -305,7 +305,7 @@ mod tests {
         let person = NewPerson {
             first_name: "".to_owned(),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(1980-5-20),
+            date_of_birth: date!(1980 - 5 - 20),
         };
 
         assert!(person.validate().is_err());
@@ -316,7 +316,7 @@ mod tests {
         let person = NewPerson {
             first_name: "Jane".to_owned(),
             family_name: "".to_owned(),
-            date_of_birth: date!(1990-11-3),
+            date_of_birth: date!(1990 - 11 - 3),
         };
 
         assert!(person.validate().is_err());
@@ -328,7 +328,7 @@ mod tests {
         let person = NewPerson {
             first_name: sixty_four.clone(),
             family_name: sixty_four,
-            date_of_birth: date!(2000-1-1),
+            date_of_birth: date!(2000 - 1 - 1),
         };
 
         assert!(person.validate().is_ok());
@@ -339,7 +339,7 @@ mod tests {
         let person = NewPerson {
             first_name: "a".repeat(65),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(1985-7-4),
+            date_of_birth: date!(1985 - 7 - 4),
         };
 
         assert!(person.validate().is_err());
@@ -350,7 +350,7 @@ mod tests {
         let person = NewPerson {
             first_name: "Jane".to_owned(),
             family_name: "a".repeat(65),
-            date_of_birth: date!(1985-7-4),
+            date_of_birth: date!(1985 - 7 - 4),
         };
 
         assert!(person.validate().is_err());
@@ -364,7 +364,10 @@ mod tests {
             date_of_birth: time::OffsetDateTime::now_utc().date(),
         };
 
-        assert!(person.validate().is_ok(), "Today's date should be accepted (> check, not >=)");
+        assert!(
+            person.validate().is_ok(),
+            "Today's date should be accepted (> check, not >=)"
+        );
     }
 
     #[test]
@@ -372,7 +375,7 @@ mod tests {
         let person = NewPerson {
             first_name: "John".to_owned(),
             family_name: "Doe".to_owned(),
-            date_of_birth: date!(2050-1-1),
+            date_of_birth: date!(2050 - 1 - 1),
         };
 
         assert!(person.validate().is_err());
@@ -440,7 +443,7 @@ mod tests {
         let person = UpdatePerson {
             first_name: None,
             family_name: None,
-            date_of_birth: Some(date!(1990-6-15)),
+            date_of_birth: Some(date!(1990 - 6 - 15)),
         };
 
         assert!(person.validate().is_ok());
@@ -451,7 +454,7 @@ mod tests {
         let person = UpdatePerson {
             first_name: None,
             family_name: None,
-            date_of_birth: Some(date!(2099-12-31)),
+            date_of_birth: Some(date!(2099 - 12 - 31)),
         };
 
         assert!(person.validate().is_err());
